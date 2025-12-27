@@ -114,33 +114,44 @@
       };
 
       const exportToICal = () => {
+        const now = new Date();
+        const dtstamp = now.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        
         const events = Object.entries(markedDays).map(([dateStr, type]) => {
           const dtstart = formatDateForICal(dateStr);
           const [y, m, d] = dateStr.split('-').map(Number);
           const nextDay = new Date(y, m - 1, d + 1);
           const dtend = `${nextDay.getFullYear()}${String(nextDay.getMonth() + 1).padStart(2, '0')}${String(nextDay.getDate()).padStart(2, '0')}`;
           
-          const summary = type === 'kids' ? 'Kids 🟢' : 'No Kids 🔴';
+          const summary = type === 'kids' ? 'Kids' : 'No Kids';
           const uid = generateUID(dateStr, type);
 
-          return `BEGIN:VEVENT
-DTSTART;VALUE=DATE:${dtstart}
-DTEND;VALUE=DATE:${dtend}
-SUMMARY:${summary}
-UID:${uid}
-DESCRIPTION:${type === 'kids' ? 'Kids day' : 'No kids day'}
-TRANSP:TRANSPARENT
-END:VEVENT`;
+          // Each line must end with CRLF per RFC 5545
+          return [
+            'BEGIN:VEVENT',
+            `UID:${uid}`,
+            `DTSTAMP:${dtstamp}`,
+            `DTSTART;VALUE=DATE:${dtstart}`,
+            `DTEND;VALUE=DATE:${dtend}`,
+            `SUMMARY:${summary}`,
+            `DESCRIPTION:${type === 'kids' ? 'Kids day' : 'No kids day'}`,
+            'TRANSP:TRANSPARENT',
+            'END:VEVENT'
+          ].join('\r\n');
         });
 
-        const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Custody Calendar//EN
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-X-WR-CALNAME:Custody Schedule
-${events.join('\n')}
-END:VCALENDAR`;
+        // RFC 5545 requires CRLF line endings throughout
+        const icsLines = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Custody Calendar//EN',
+          'CALSCALE:GREGORIAN',
+          'METHOD:PUBLISH',
+          'X-WR-CALNAME:Custody Schedule',
+          ...events,
+          'END:VCALENDAR'
+        ];
+        const icsContent = icsLines.join('\r\n');
 
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const url = URL.createObjectURL(blob);
